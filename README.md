@@ -1,0 +1,729 @@
+[index.html](https://github.com/user-attachments/files/30272616/index.html)
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<title>Simulador de Lucro de Produto — v2</title>
+<style>
+  :root {
+    --paper: #f7f9f8;
+    --card: #ffffff;
+    --ink: #16201b;
+    --ink-soft: #48564f;
+    --muted: #7c8a83;
+    --line: #e2e8e4;
+    --line-strong: #cfd8d3;
+    --field: #ffffff;
+    --field-line: #d3ddd7;
+    --accent: #0e7c5a;
+    --accent-soft: #e6f3ee;
+    --profit: #0e7c5a;
+    --tax: #c0432f;
+    --tax-soft: #f7e7e3;
+    --shadow: 0 1px 2px rgba(22,32,27,.05), 0 12px 32px -18px rgba(22,32,27,.28);
+    --seg-cost: #7d94a8;
+    --seg-tax: #d6725f;
+    --seg-comm: #d9a441;
+    --seg-profit: #2fa17a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #101613; --card: #17201c; --ink: #ecf2ee; --ink-soft: #b3c1ba; --muted: #7f8f88;
+      --line: #263129; --line-strong: #33423a; --field: #101815; --field-line: #35443c;
+      --accent: #3fbd90; --accent-soft: #143026; --profit: #3fbd90; --tax: #e8836f; --tax-soft: #33201c;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 18px 40px -22px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="light"] {
+    --paper: #f7f9f8; --card: #ffffff; --ink: #16201b; --ink-soft: #48564f; --muted: #7c8a83;
+    --line: #e2e8e4; --line-strong: #cfd8d3; --field: #ffffff; --field-line: #d3ddd7;
+    --accent: #0e7c5a; --accent-soft: #e6f3ee; --profit: #0e7c5a; --tax: #c0432f; --tax-soft: #f7e7e3;
+    --shadow: 0 1px 2px rgba(22,32,27,.05), 0 12px 32px -18px rgba(22,32,27,.28);
+    --seg-cost:#7d94a8; --seg-tax:#d6725f; --seg-comm:#d9a441; --seg-profit:#2fa17a;
+  }
+  :root[data-theme="dark"] {
+    --paper: #101613; --card: #17201c; --ink: #ecf2ee; --ink-soft: #b3c1ba; --muted: #7f8f88;
+    --line: #263129; --line-strong: #33423a; --field: #101815; --field-line: #35443c;
+    --accent: #3fbd90; --accent-soft: #143026; --profit: #3fbd90; --tax: #e8836f; --tax-soft: #33201c;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 18px 40px -22px rgba(0,0,0,.7);
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .wrap {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--paper); color: var(--ink); min-height: 100vh;
+    padding: clamp(18px, 4vw, 48px) clamp(14px, 4vw, 40px) 64px; -webkit-font-smoothing: antialiased;
+  }
+  .shell { max-width: 1120px; margin: 0 auto; }
+
+  header.top { margin-bottom: clamp(20px, 3vw, 34px); }
+  .eyebrow { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin: 0 0 10px; }
+  h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 600; font-size: clamp(28px, 4.4vw, 44px); line-height: 1.05; margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { margin: 12px 0 0; color: var(--ink-soft); max-width: 62ch; font-size: 15px; line-height: 1.5; }
+
+  .grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: clamp(16px, 2.4vw, 28px); align-items: start; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+  .panel { padding: clamp(18px, 2.6vw, 28px); }
+
+  .section-label { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 0 0 14px; }
+  .section-label.mt { margin-top: 26px; }
+  .section-label .hint { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--muted); }
+
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+  .field.wide { grid-column: 1 / -1; }
+  label { display: block; }
+  .flabel { font-size: 13px; color: var(--ink-soft); font-weight: 500; margin-bottom: 6px; display: block; }
+  .input-line { position: relative; display: flex; align-items: center; }
+  .affix { position: absolute; font-size: 13px; color: var(--muted); pointer-events: none; font-variant-numeric: tabular-nums; }
+  .affix.pre { left: 12px; } .affix.post { right: 12px; }
+  input[type="text"] {
+    width: 100%; font: inherit; font-size: 15px; color: var(--ink); background: var(--field);
+    border: 1px solid var(--field-line); border-radius: 9px; padding: 10px 12px; text-align: right;
+    font-variant-numeric: tabular-nums; transition: border-color .15s, box-shadow .15s;
+  }
+  input.has-pre { padding-left: 30px; } input.has-post { padding-right: 30px; }
+  input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  .seg-toggle { display: inline-flex; background: var(--paper); border: 1px solid var(--field-line); border-radius: 8px; padding: 3px; gap: 3px; }
+  .seg-toggle button { font: inherit; font-size: 12.5px; font-weight: 500; border: 0; background: transparent; color: var(--ink-soft); padding: 5px 11px; border-radius: 6px; cursor: pointer; }
+  .seg-toggle button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+
+  /* KPIs */
+  .result-head { display: flex; flex-wrap: wrap; gap: 18px 24px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .kpi { flex: 1 1 130px; }
+  .kpi .k-label { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+  .kpi .k-value { font-size: clamp(24px, 4vw, 32px); font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+  .kpi.profit .k-value { color: var(--profit); }
+  .kpi.markup .k-value { color: var(--ink); }
+  .kpi .k-sub { font-size: 12.5px; color: var(--muted); margin-top: 7px; font-variant-numeric: tabular-nums; line-height: 1.4; }
+
+  /* Cost build-up */
+  .buildup { margin: 20px 0 4px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .bu-cap { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 12px 14px 2px; }
+  .bu-row { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 10px 12px; padding: 9px 14px; font-size: 14px; border-top: 1px solid var(--line); }
+  .bu-row:first-of-type { border-top: 0; }
+  .bu-name { color: var(--ink-soft); }
+  .bu-val { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .bu-row.credit .bu-val { color: var(--profit); }
+  .bu-row.result { background: var(--accent-soft); border-top: 1px solid var(--line-strong); }
+  .bu-row.result .bu-name, .bu-row.result .bu-val { color: var(--ink); font-weight: 650; }
+
+  /* Disclosure + sub-detail (shared by build-up rows and tax legend) */
+  .disclosure { font: inherit; font-size: 11px; font-weight: 500; color: var(--accent); background: transparent; border: 0; cursor: pointer; padding: 1px 4px; margin-left: 8px; border-radius: 5px; letter-spacing: .02em; }
+  .disclosure:hover { background: var(--accent-soft); }
+  .subtax { grid-column: 1 / -1; margin: 8px 0 1px; padding-left: 4px; display: grid; gap: 6px; }
+  .subtax[hidden] { display: none; }
+  .subtax-item { display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; gap: 12px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .subtax-item .st-name { color: var(--ink-soft); }
+  .subtax-item .st-pct { text-align: right; min-width: 48px; }
+  .subtax-item .st-val { text-align: right; min-width: 88px; color: var(--ink-soft); }
+
+  /* Composition bar + legend */
+  .bar-wrap { margin: 22px 0 6px; }
+  .bar-title { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 10px; }
+  .bar { display: flex; height: 34px; border-radius: 8px; overflow: hidden; background: var(--paper); border: 1px solid var(--line); }
+  .bar span { transition: flex-basis .3s ease; min-width: 0; }
+  .seg-cost { background: var(--seg-cost); } .seg-tax { background: var(--seg-tax); }
+  .seg-comm { background: var(--seg-comm); } .seg-profit { background: var(--seg-profit); }
+
+  .legend { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 2px; }
+  .legend li { display: grid; grid-template-columns: 14px 1fr auto auto; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .legend li:last-child { border-bottom: 0; }
+  .dot { width: 11px; height: 11px; border-radius: 3px; }
+  .lg-name { color: var(--ink-soft); }
+  .lg-pct { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; text-align: right; min-width: 52px; }
+  .lg-val { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; min-width: 92px; }
+  .legend li.total { border-top: 2px solid var(--line-strong); margin-top: 4px; padding-top: 12px; font-weight: 600; }
+  .legend li.total .lg-name { color: var(--ink); }
+
+  .note { margin-top: 18px; padding: 12px 14px; border-radius: 10px; background: var(--accent-soft); color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
+  .warn { background: var(--tax-soft); color: var(--tax); font-weight: 500; display: none; }
+  .warn.show { display: block; }
+  .foot { margin-top: 16px; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+  .foot b { color: var(--ink-soft); font-weight: 600; }
+  .reset { font: inherit; font-size: 13px; font-weight: 500; color: var(--accent); background: transparent; border: 1px solid var(--field-line); border-radius: 8px; padding: 7px 14px; cursor: pointer; margin-top: 18px; }
+  .reset:hover { border-color: var(--accent); }
+  .mt4 { margin-top: 4px; }
+
+  /* Pesquisa de preço de mercado */
+  .search-card { margin-top: clamp(16px, 2.4vw, 28px); }
+  .search-intro { margin: 0 0 16px; color: var(--ink-soft); font-size: 14px; line-height: 1.5; max-width: 74ch; }
+  .search-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; }
+  .input-line.grow { flex: 1 1 260px; }
+  .search-input { text-align: left; }
+  .scan-btn { font: inherit; font-size: 14px; font-weight: 600; color: #fff; background: var(--accent); border: 0; border-radius: 10px; padding: 10px 16px; cursor: pointer; white-space: nowrap; }
+  .scan-btn:hover { filter: brightness(1.06); }
+  @media (prefers-color-scheme: dark) { .scan-btn { color: #08150f; } }
+  :root[data-theme="dark"] .scan-btn { color: #08150f; }
+  :root[data-theme="light"] .scan-btn { color: #fff; }
+  .photo-btn { font: inherit; font-size: 14px; font-weight: 600; color: var(--accent); background: transparent; border: 1px solid var(--field-line); border-radius: 10px; padding: 10px 16px; cursor: pointer; white-space: nowrap; }
+  .photo-btn:hover { border-color: var(--accent); }
+  .info-note { margin-top: 12px; padding: 11px 13px; border-radius: 10px; background: var(--accent-soft); color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
+  .info-note[hidden] { display: none; }
+  .info-note a { color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+
+  .scan-note { margin-top: 12px; padding: 11px 13px; border-radius: 10px; background: var(--tax-soft); color: var(--tax); font-size: 13px; line-height: 1.5; }
+  .scan-note[hidden] { display: none; }
+
+  .scanner { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #000; }
+  .scanner[hidden] { display: none; }
+  .scanner video { width: 100%; max-height: 320px; object-fit: cover; display: block; background: #000; }
+  .scan-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: var(--card); font-size: 13px; color: var(--ink-soft); }
+  .mini { font: inherit; font-size: 12.5px; font-weight: 500; color: var(--ink-soft); background: transparent; border: 1px solid var(--field-line); border-radius: 8px; padding: 5px 12px; cursor: pointer; }
+
+  .links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .lnk { font-size: 13.5px; font-weight: 500; text-decoration: none; color: var(--ink); background: var(--paper); border: 1px solid var(--field-line); border-radius: 999px; padding: 8px 15px; display: inline-flex; align-items: center; gap: 7px; transition: border-color .15s; }
+  .lnk::before { content: "↗"; color: var(--accent); font-weight: 700; }
+  .lnk:hover { border-color: var(--accent); }
+  .lnk.disabled { opacity: .4; pointer-events: none; }
+
+  .ref-row { display: grid; grid-template-columns: minmax(200px, 260px) 1fr; gap: 18px; align-items: center; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+  @media (max-width: 560px) { .ref-row { grid-template-columns: 1fr; } }
+  .ref-field .input-line input { text-align: right; }
+  .ref-out { font-size: 14px; color: var(--muted); line-height: 1.5; }
+  .ref-out b { font-weight: 650; }
+  .ref-out.good { color: var(--profit); }
+  .ref-out.high { color: var(--commission, #b8791f); }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <div class="shell">
+    <header class="top">
+      <p class="eyebrow">Precificação · E-commerce · <span style="color:var(--ink-soft)">v2</span></p>
+      <h1>Simulador de Lucro de Produto</h1>
+      <p class="lede">Informe o custo do produto, os créditos recuperáveis e as alíquotas. O simulador calcula o custo efetivo, o preço de venda que garante a margem desejada, o markup e para onde vai cada real da venda. Esta versão lê o código de barras <b>EAN em qualquer celular</b> (inclusive iPhone) e <b>lembra seus últimos valores</b> neste navegador.</p>
+    </header>
+
+    <div class="grid">
+      <!-- ENTRADAS -->
+      <form class="card panel" id="form" autocomplete="off">
+        <p class="section-label">Custo de aquisição</p>
+        <div class="fields">
+          <div class="field wide">
+            <label><span class="flabel">Valor do produto (compra)</span>
+              <span class="input-line"><span class="affix pre">R$</span>
+                <input type="text" inputmode="decimal" id="produto" class="has-pre" value="100,00"></span>
+            </label>
+          </div>
+          <div class="field">
+            <label><span class="flabel">IPI</span>
+              <span class="input-line"><input type="text" inputmode="decimal" id="ipi" class="has-post" value="5"><span class="affix post">%</span></span>
+            </label>
+          </div>
+          <div class="field">
+            <label><span class="flabel">ICMS ST</span>
+              <span class="input-line"><input type="text" inputmode="decimal" id="icmsst" class="has-post" value="0"><span class="affix post">%</span></span>
+            </label>
+          </div>
+          <div class="field wide">
+            <label><span class="flabel">Frete de compra</span>
+              <span class="input-line"><span class="affix pre">R$</span><input type="text" inputmode="decimal" id="frete" class="has-pre" value="10,00"></span>
+            </label>
+          </div>
+        </div>
+
+        <p class="section-label mt">Créditos recuperáveis na compra <span class="hint">— base: valor do produto</span></p>
+        <div class="fields">
+          <div class="field"><label><span class="flabel">ICMS a recuperar</span>
+            <span class="input-line"><input type="text" inputmode="decimal" id="cIcms" class="has-post" value="18"><span class="affix post">%</span></span></label></div>
+          <div class="field"><label><span class="flabel">PIS a recuperar</span>
+            <span class="input-line"><input type="text" inputmode="decimal" id="cPis" class="has-post" value="1,65"><span class="affix post">%</span></span></label></div>
+          <div class="field"><label><span class="flabel">COFINS a recuperar</span>
+            <span class="input-line"><input type="text" inputmode="decimal" id="cCofins" class="has-post" value="7,60"><span class="affix post">%</span></span></label></div>
+          <div class="field"><label><span class="flabel">IPI a recuperar</span>
+            <span class="input-line"><input type="text" inputmode="decimal" id="cIpi" class="has-post" value="0"><span class="affix post">%</span></span></label></div>
+        </div>
+
+        <p class="section-label mt">Impostos sobre a venda</p>
+        <div class="fields">
+          <div class="field"><label><span class="flabel">ICMS</span>
+            <span class="input-line"><input type="text" inputmode="decimal" id="icms" class="has-post" value="18"><span class="affix post">%</span></span></label></div>
+          <div class="field"><label><span class="flabel">PIS</span>
+            <span class="input-line"><input type="text" inputmode="decimal" id="pis" class="has-post" value="1,65"><span class="affix post">%</span></span></label></div>
+          <div class="field"><label><span class="flabel">COFINS</span>
+            <span class="input-line"><input type="text" inputmode="decimal" id="cofins" class="has-post" value="7,60"><span class="affix post">%</span></span></label></div>
+          <div class="field"><label><span class="flabel">Comissão e-commerce</span>
+            <span class="input-line"><input type="text" inputmode="decimal" id="ecommerce" class="has-post" value="16"><span class="affix post">%</span></span></label></div>
+        </div>
+
+        <p class="section-label mt">Margem de lucro</p>
+        <div class="fields">
+          <div class="field wide">
+            <label><span class="flabel">Margem desejada <span id="marginBasis" style="color:var(--muted);font-weight:400">(sobre o preço de venda)</span></span>
+              <span class="input-line"><input type="text" inputmode="decimal" id="margem" class="has-post" value="20"><span class="affix post">%</span></span></label>
+            <div class="mt4 seg-toggle" role="group" aria-label="Base da margem">
+              <button type="button" id="basePreco" aria-pressed="true">Sobre a venda</button>
+              <button type="button" id="baseCusto" aria-pressed="false">Sobre o custo</button>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" class="reset" id="reset">Restaurar exemplo</button>
+      </form>
+
+      <!-- RESULTADOS -->
+      <section class="card panel" aria-live="polite">
+        <div class="result-head">
+          <div class="kpi">
+            <div class="k-label">Preço de venda sugerido</div>
+            <div class="k-value" id="outPreco">—</div>
+          </div>
+          <div class="kpi markup">
+            <div class="k-label">Markup</div>
+            <div class="k-value" id="outMk">—</div>
+            <div class="k-sub" id="outMkSub">sobre o custo efetivo</div>
+          </div>
+          <div class="kpi profit">
+            <div class="k-label">Lucro líquido</div>
+            <div class="k-value" id="outLucro">—</div>
+            <div class="k-sub" id="outLucroPct">—</div>
+          </div>
+        </div>
+
+        <!-- Custo do produto -->
+        <div class="buildup">
+          <div class="bu-cap">Custo do produto</div>
+          <div class="bu-row">
+            <span class="bu-name">Valor de compra<button type="button" class="disclosure" data-toggle="compraDetail" aria-expanded="false" aria-controls="compraDetail">detalhar</button></span>
+            <span class="bu-val" id="valCompra">—</span>
+            <div class="subtax" id="compraDetail" hidden>
+              <div class="subtax-item"><span class="st-name">Valor do produto</span><span class="st-pct"></span><span class="st-val" id="buProduto">—</span></div>
+              <div class="subtax-item"><span class="st-name">IPI</span><span class="st-pct" id="buIpiPct"></span><span class="st-val" id="buIpi">—</span></div>
+              <div class="subtax-item"><span class="st-name">ICMS ST</span><span class="st-pct" id="buStPct"></span><span class="st-val" id="buIcmsst">—</span></div>
+              <div class="subtax-item"><span class="st-name">Frete de compra</span><span class="st-pct"></span><span class="st-val" id="buFrete">—</span></div>
+            </div>
+          </div>
+          <div class="bu-row credit">
+            <span class="bu-name">(−) Créditos recuperáveis<button type="button" class="disclosure" data-toggle="credDetail" aria-expanded="false" aria-controls="credDetail">detalhar</button></span>
+            <span class="bu-val" id="valCred">—</span>
+            <div class="subtax" id="credDetail" hidden>
+              <div class="subtax-item"><span class="st-name">ICMS</span><span class="st-pct" id="crIcmsPct"></span><span class="st-val" id="crIcms">—</span></div>
+              <div class="subtax-item"><span class="st-name">PIS</span><span class="st-pct" id="crPisPct"></span><span class="st-val" id="crPis">—</span></div>
+              <div class="subtax-item"><span class="st-name">COFINS</span><span class="st-pct" id="crCofinsPct"></span><span class="st-val" id="crCofins">—</span></div>
+              <div class="subtax-item"><span class="st-name">IPI</span><span class="st-pct" id="crIpiPct"></span><span class="st-val" id="crIpi">—</span></div>
+            </div>
+          </div>
+          <div class="bu-row result">
+            <span class="bu-name">(=) Custo efetivo <span style="font-weight:400;color:var(--muted)">— sem créditos</span></span>
+            <span class="bu-val" id="valEfetivo">—</span>
+          </div>
+        </div>
+
+        <div class="bar-wrap">
+          <div class="bar-title">Composição do preço de venda</div>
+          <div class="bar" id="bar">
+            <span class="seg-cost" style="flex-basis:37%"></span>
+            <span class="seg-tax" style="flex-basis:27%"></span>
+            <span class="seg-comm" style="flex-basis:16%"></span>
+            <span class="seg-profit" style="flex-basis:20%"></span>
+          </div>
+        </div>
+
+        <ul class="legend">
+          <li>
+            <span class="dot seg-cost"></span>
+            <span class="lg-name">Custo efetivo do produto</span>
+            <span class="lg-pct" id="pctCusto">—</span>
+            <span class="lg-val" id="valCusto">—</span>
+          </li>
+          <li>
+            <span class="dot seg-tax"></span>
+            <span class="lg-name">Impostos sobre a venda<button type="button" class="disclosure" data-toggle="taxDetail" aria-expanded="true" aria-controls="taxDetail">ocultar</button></span>
+            <span class="lg-pct" id="pctImp">—</span>
+            <span class="lg-val" id="valImp">—</span>
+            <div class="subtax" id="taxDetail">
+              <div class="subtax-item"><span class="st-name">ICMS</span><span class="st-pct" id="pctIcms">—</span><span class="st-val" id="valIcms">—</span></div>
+              <div class="subtax-item"><span class="st-name">PIS</span><span class="st-pct" id="pctPis">—</span><span class="st-val" id="valPis">—</span></div>
+              <div class="subtax-item"><span class="st-name">COFINS</span><span class="st-pct" id="pctCofins">—</span><span class="st-val" id="valCofins">—</span></div>
+            </div>
+          </li>
+          <li>
+            <span class="dot seg-comm"></span>
+            <span class="lg-name">Comissão e-commerce</span>
+            <span class="lg-pct" id="pctCom">—</span>
+            <span class="lg-val" id="valCom">—</span>
+          </li>
+          <li>
+            <span class="dot seg-profit"></span>
+            <span class="lg-name">Lucro líquido</span>
+            <span class="lg-pct" id="pctLuc">—</span>
+            <span class="lg-val" id="valLuc">—</span>
+          </li>
+          <li class="total">
+            <span class="dot" style="background:transparent"></span>
+            <span class="lg-name">Preço de venda</span>
+            <span class="lg-pct">100%</span>
+            <span class="lg-val" id="valTotal">—</span>
+          </li>
+        </ul>
+
+        <div class="note warn" id="warn"></div>
+        <p class="foot">
+          <b>Valor de compra</b> = produto + IPI + ICMS ST + frete. <b>Custo efetivo</b> = valor de compra − créditos recuperáveis (regime não-cumulativo / Lucro Real; zere os créditos no Simples Nacional).
+          O <b>markup</b> e a <b>margem</b> incidem sobre o custo efetivo; impostos e comissão sobre o preço de venda (markup divisor).
+        </p>
+      </section>
+    </div>
+
+    <section class="card panel search-card">
+      <p class="section-label">Pesquisa de preço de mercado</p>
+      <p class="search-intro">Digite o nome do produto ou o código EAN e pesquise a média praticada nos principais marketplaces. No celular, toque em <b>Bipar EAN</b> para ler o código de barras com a câmera — funciona no Android e no iPhone. Ou toque em <b>Buscar por foto</b>: você fotografa o produto e a imagem vai para o Google Lens, que encontra onde comprar e os preços. Para a câmera funcionar no celular, abra esta página por <b>HTTPS</b> (hospedada), não como arquivo local.</p>
+      <div class="search-row">
+        <span class="input-line grow"><span class="affix pre">🔎</span>
+          <input type="text" id="query" class="has-pre search-input" placeholder="Nome do produto ou código EAN" autocomplete="off"></span>
+        <button type="button" class="photo-btn" id="photoBtn">📸 Buscar por foto</button>
+        <button type="button" class="scan-btn" id="scanBtn">📷 Bipar EAN</button>
+      </div>
+      <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
+      <div class="scan-note" id="scanNote" hidden></div>
+      <div class="info-note" id="photoNote" hidden></div>
+      <div class="scanner" id="scanner" hidden>
+        <video id="video" playsinline muted></video>
+        <div class="scan-bar"><span id="scanMsg">Aponte a câmera para o código de barras…</span>
+          <button type="button" class="mini" id="scanClose">Fechar câmera</button></div>
+      </div>
+      <div class="links" id="links">
+        <a class="lnk disabled" id="lnkShop" target="_blank" rel="noopener noreferrer">Google Shopping</a>
+        <a class="lnk disabled" id="lnkML" target="_blank" rel="noopener noreferrer">Mercado Livre</a>
+        <a class="lnk disabled" id="lnkBusca" target="_blank" rel="noopener noreferrer">Buscapé</a>
+        <a class="lnk disabled" id="lnkGoogle" target="_blank" rel="noopener noreferrer">Google</a>
+      </div>
+      <div class="ref-row">
+        <label class="ref-field"><span class="flabel">Preço médio encontrado (referência)</span>
+          <span class="input-line"><span class="affix pre">R$</span>
+            <input type="text" inputmode="decimal" id="refPrice" class="has-pre" placeholder="0,00"></span></label>
+        <div class="ref-out" id="refOut">Informe o preço médio encontrado para comparar com o preço de venda sugerido.</div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  var brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  var pct1 = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  var mult = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  var defaults = {
+    produto:'100,00', ipi:'5', icmsst:'0', frete:'10,00',
+    cIcms:'18', cPis:'1,65', cCofins:'7,60', cIpi:'0',
+    icms:'18', pis:'1,65', cofins:'7,60', ecommerce:'16', margem:'20'
+  };
+  var ids = Object.keys(defaults);
+  var el = {}; ids.forEach(function (id) { el[id] = document.getElementById(id); });
+
+  var STORE = 'simuladorLucro_v2';
+  function persist() {
+    try { var o = {}; ids.forEach(function (id) { o[id] = el[id].value; }); o.query = q.value; localStorage.setItem(STORE, JSON.stringify(o)); } catch (e) {}
+  }
+  function restore() {
+    try {
+      var o = JSON.parse(localStorage.getItem(STORE) || 'null'); if (!o) return;
+      ids.forEach(function (id) { if (o[id] != null) el[id].value = o[id]; });
+      if (o.query != null) q.value = o.query;
+    } catch (e) {}
+  }
+
+  var marginOnPrice = true;
+  var lastPreco = 0;
+  var basePreco = document.getElementById('basePreco');
+  var baseCusto = document.getElementById('baseCusto');
+  var marginBasis = document.getElementById('marginBasis');
+
+  function parseBR(v) {
+    v = (v || '').trim().replace(/\./g, '').replace(',', '.');
+    var n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+  }
+  function num(id) { return parseBR(el[id].value); }
+  function setText(id, t) { document.getElementById(id).textContent = t; }
+
+  function calc() {
+    var produto = num('produto'), ipi = num('ipi'), icmsst = num('icmsst'), frete = num('frete');
+    var cIcms = num('cIcms'), cPis = num('cPis'), cCofins = num('cCofins'), cIpi = num('cIpi');
+    var icms = num('icms'), pis = num('pis'), cofins = num('cofins');
+    var ecommerce = num('ecommerce'), margem = num('margem');
+
+    // Custo
+    var vIpi = produto * ipi / 100, vSt = produto * icmsst / 100;
+    var compra = produto + vIpi + vSt + frete;
+
+    var crI = produto * cIcms / 100, crP = produto * cPis / 100, crC = produto * cCofins / 100, crIp = produto * cIpi / 100;
+    var creditos = crI + crP + crC + crIp;
+    var custo = compra - creditos; // custo efetivo
+
+    var pctImpVenda = (icms + pis + cofins) / 100;
+    var pctComissao = ecommerce / 100;
+
+    var warnEl = document.getElementById('warn');
+    var denom = 1 - pctImpVenda - pctComissao - (marginOnPrice ? margem / 100 : 0);
+
+    var ok = true;
+    if (custo <= 0) ok = false;
+    if (denom <= 0) ok = false;
+
+    // Build-up sempre visível
+    setText('valCompra', brl.format(compra));
+    setText('buProduto', brl.format(produto));
+    setText('buIpi', brl.format(vIpi)); setText('buIpiPct', pct1.format(ipi) + '%');
+    setText('buIcmsst', brl.format(vSt)); setText('buStPct', pct1.format(icmsst) + '%');
+    setText('buFrete', brl.format(frete));
+    setText('valCred', '− ' + brl.format(creditos));
+    setText('crIcms', brl.format(crI)); setText('crIcmsPct', pct1.format(cIcms) + '%');
+    setText('crPis', brl.format(crP)); setText('crPisPct', pct1.format(cPis) + '%');
+    setText('crCofins', brl.format(crC)); setText('crCofinsPct', pct1.format(cCofins) + '%');
+    setText('crIpi', brl.format(crIp)); setText('crIpiPct', pct1.format(cIpi) + '%');
+    setText('valEfetivo', brl.format(custo));
+
+    if (!ok) {
+      warnEl.className = 'note warn show';
+      warnEl.textContent = (custo <= 0)
+        ? 'O custo efetivo ficou zero ou negativo — reveja o valor do produto e os créditos recuperáveis.'
+        : 'A soma de impostos + comissão + margem chegou a 100% ou mais — não existe preço de venda possível. Reduza algum percentual.';
+      ['outPreco','outLucro','outMk'].forEach(function (i){ setText(i,'—'); });
+      setText('outLucroPct','—');
+      lastPreco = 0; updateRef();
+      return;
+    }
+    warnEl.className = 'note warn';
+
+    var preco, lucro;
+    if (marginOnPrice) { preco = custo / denom; lucro = preco * margem / 100; }
+    else { lucro = custo * margem / 100; preco = (custo + lucro) / (1 - pctImpVenda - pctComissao); }
+
+    var impVenda = preco * pctImpVenda;
+    var comissao = preco * pctComissao;
+    var vIcms = preco * icms / 100, vPis = preco * pis / 100, vCofins = preco * cofins / 100;
+    var markup = custo > 0 ? preco / custo : 0;
+
+    setText('outPreco', brl.format(preco));
+    setText('outMk', mult.format(markup) + '×');
+    setText('outMkSub', 'custo efetivo ' + brl.format(custo));
+    setText('outLucro', brl.format(lucro));
+    setText('outLucroPct', pct1.format(preco>0 ? lucro/preco*100 : 0) + '% da venda · ' + pct1.format(custo>0 ? lucro/custo*100 : 0) + '% sobre custo');
+
+    function p(v){ return pct1.format(preco>0 ? v/preco*100 : 0) + '%'; }
+    setText('valCusto', brl.format(custo)); setText('pctCusto', p(custo));
+    setText('valImp', brl.format(impVenda)); setText('pctImp', p(impVenda));
+    setText('valIcms', brl.format(vIcms)); setText('pctIcms', p(vIcms));
+    setText('valPis', brl.format(vPis)); setText('pctPis', p(vPis));
+    setText('valCofins', brl.format(vCofins)); setText('pctCofins', p(vCofins));
+    setText('valCom', brl.format(comissao)); setText('pctCom', p(comissao));
+    setText('valLuc', brl.format(lucro)); setText('pctLuc', p(lucro));
+    setText('valTotal', brl.format(preco));
+
+    var bar = document.getElementById('bar').children;
+    [custo, impVenda, comissao, lucro].forEach(function (v, i) { bar[i].style.flexBasis = (preco>0 ? v/preco*100 : 0) + '%'; });
+
+    lastPreco = preco; updateRef();
+  }
+
+  ids.forEach(function (id) { el[id].addEventListener('input', function () { calc(); persist(); }); });
+
+  function setBase(onPrice) {
+    marginOnPrice = onPrice;
+    basePreco.setAttribute('aria-pressed', onPrice ? 'true' : 'false');
+    baseCusto.setAttribute('aria-pressed', onPrice ? 'false' : 'true');
+    marginBasis.textContent = onPrice ? '(sobre o preço de venda)' : '(sobre o custo efetivo)';
+    calc();
+  }
+  basePreco.addEventListener('click', function(){ setBase(true); });
+  baseCusto.addEventListener('click', function(){ setBase(false); });
+
+  document.querySelectorAll('[data-toggle]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var t = document.getElementById(btn.getAttribute('data-toggle'));
+      var open = btn.getAttribute('aria-expanded') === 'true';
+      t.hidden = open;
+      btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+      btn.textContent = open ? 'detalhar' : 'ocultar';
+    });
+  });
+
+  document.getElementById('reset').addEventListener('click', function () {
+    ids.forEach(function (id) { el[id].value = defaults[id]; });
+    try { localStorage.removeItem(STORE); } catch (e) {}
+    setBase(true);
+  });
+
+  /* ---- Pesquisa de preço de mercado ---- */
+  var q = document.getElementById('query');
+  var refPrice = document.getElementById('refPrice');
+  var refOut = document.getElementById('refOut');
+
+  var linkBuilders = {
+    lnkShop:  function (t) { return 'https://www.google.com/search?tbm=shop&q=' + t; },
+    lnkML:    function (t) { return 'https://lista.mercadolivre.com.br/' + t; },
+    lnkBusca: function (t) { return 'https://www.buscape.com.br/search?q=' + t; },
+    lnkGoogle:function (t) { return 'https://www.google.com/search?q=' + t; }
+  };
+  function updateLinks() {
+    var term = q.value.trim();
+    var enc = encodeURIComponent(term);
+    Object.keys(linkBuilders).forEach(function (id) {
+      var a = document.getElementById(id);
+      if (term) { a.href = linkBuilders[id](enc); a.classList.remove('disabled'); }
+      else { a.removeAttribute('href'); a.classList.add('disabled'); }
+    });
+  }
+  restore();
+  q.addEventListener('input', function () { updateLinks(); persist(); });
+  updateLinks();
+
+  function updateRef() {
+    var ref = parseBR(refPrice.value);
+    if (!(ref > 0) || !(lastPreco > 0)) {
+      refOut.className = 'ref-out';
+      refOut.textContent = 'Informe o preço médio encontrado para comparar com o preço de venda sugerido.';
+      return;
+    }
+    var diff = (lastPreco - ref) / ref * 100;
+    if (lastPreco <= ref) {
+      refOut.className = 'ref-out good';
+      refOut.innerHTML = 'Seu preço sugerido <b>' + brl.format(lastPreco) + '</b> está <b>' + pct1.format(Math.abs(diff)) + '% abaixo</b> da média de mercado (' + brl.format(ref) + ') — competitivo.';
+    } else {
+      refOut.className = 'ref-out high';
+      refOut.innerHTML = 'Seu preço sugerido <b>' + brl.format(lastPreco) + '</b> está <b>' + pct1.format(diff) + '% acima</b> da média de mercado (' + brl.format(ref) + ').';
+    }
+  }
+  refPrice.addEventListener('input', updateRef);
+
+  /* ---- Leitor de código de barras (EAN) — BarcodeDetector nativo + ZXing (iPhone) ---- */
+  var scanBtn = document.getElementById('scanBtn');
+  var scanner = document.getElementById('scanner');
+  var video = document.getElementById('video');
+  var scanNote = document.getElementById('scanNote');
+  var scanMsg = document.getElementById('scanMsg');
+  var scanClose = document.getElementById('scanClose');
+  var stream = null, detector = null, scanning = false, scanTimer = null, zxingReader = null;
+
+  function note(msg) { scanNote.textContent = msg; scanNote.hidden = false; }
+
+  function onFound(val) {
+    val = (val || '').trim();
+    if (!val) return;
+    stopScan();
+    q.value = val; updateLinks(); persist(); q.focus();
+    note('Código lido: ' + val + '. Toque em um marketplace acima para ver os preços.');
+  }
+
+  function stopScan() {
+    scanning = false;
+    if (scanTimer) { clearTimeout(scanTimer); scanTimer = null; }
+    if (zxingReader) { try { zxingReader.reset(); } catch (e) {} zxingReader = null; }
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    if (video) { video.srcObject = null; }
+    scanner.hidden = true;
+    scanBtn.textContent = '📷 Bipar EAN';
+  }
+
+  // Caminho 1: BarcodeDetector nativo (Chrome / Android) — mais rápido
+  function makeDetector() {
+    try { return new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] }); }
+    catch (e) { try { return new BarcodeDetector(); } catch (e2) { return null; } }
+  }
+  function tickNative() {
+    if (!scanning || !detector) return;
+    detector.detect(video).then(function (codes) {
+      if (!scanning) return;
+      if (codes && codes.length) onFound(codes[0].rawValue);
+      else scanTimer = setTimeout(tickNative, 200);
+    }).catch(function () { scanTimer = setTimeout(tickNative, 300); });
+  }
+
+  async function startScan() {
+    scanNote.hidden = true;
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+      note('Este navegador não permite acesso à câmera. Abra a página por HTTPS (não como arquivo local) e tente de novo, ou digite o EAN.');
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+    } catch (e) {
+      note('Não foi possível acessar a câmera (permissão negada). Toque no cadeado do navegador, permita a câmera e tente de novo — ou digite o código EAN.');
+      return;
+    }
+    video.srcObject = stream;
+    video.setAttribute('playsinline', '');
+    scanner.hidden = false;
+    scanBtn.textContent = '✕ Parar';
+    scanMsg.textContent = 'Aponte a câmera para o código de barras…';
+    try { await video.play(); } catch (e) {}
+    scanning = true;
+
+    // Chrome/Android: usa o leitor nativo
+    if ('BarcodeDetector' in window) {
+      detector = makeDetector();
+      if (detector) { tickNative(); return; }
+    }
+    // iPhone/Safari e demais: usa ZXing
+    if (typeof ZXing !== 'undefined' && ZXing.BrowserMultiFormatReader) {
+      try {
+        zxingReader = new ZXing.BrowserMultiFormatReader();
+        var cb = function (result) { if (result) onFound(result.getText()); };
+        if (typeof zxingReader.decodeFromVideoElement === 'function') zxingReader.decodeFromVideoElement(video, cb);
+        else if (typeof zxingReader.decodeFromStream === 'function') zxingReader.decodeFromStream(stream, video, cb);
+        else zxingReader.decodeFromVideoDevice(null, video, cb);
+      } catch (e) {
+        note('Não foi possível iniciar o leitor. Recarregue a página (a biblioteca de leitura precisa de conexão na primeira abertura) ou digite o EAN.');
+        stopScan();
+      }
+    } else {
+      note('A biblioteca de leitura de código de barras não carregou — verifique a conexão na primeira abertura. Você ainda pode digitar o EAN.');
+      stopScan();
+    }
+  }
+
+  scanBtn.addEventListener('click', function () { if (scanning) stopScan(); else startScan(); });
+  scanClose.addEventListener('click', stopScan);
+
+  /* ---- Buscar por foto (Google Lens) ---- */
+  var photoBtn = document.getElementById('photoBtn');
+  var photoInput = document.getElementById('photoInput');
+  var photoNote = document.getElementById('photoNote');
+  var LENS_URL = 'https://lens.google.com/';
+
+  function lensLink(prefix) {
+    photoNote.innerHTML = (prefix ? prefix + ' ' : '') +
+      '<a href="' + LENS_URL + '" target="_blank" rel="noopener">Abrir o Google Lens</a> e fotografar o produto para ver onde comprar e os preços.';
+    photoNote.hidden = false;
+  }
+
+  photoBtn.addEventListener('click', function () {
+    if (scanning) stopScan();
+    scanNote.hidden = true; photoNote.hidden = true;
+    photoInput.click(); // abre a câmera / galeria
+  });
+
+  photoInput.addEventListener('change', async function () {
+    var file = this.files && this.files[0];
+    this.value = '';
+    if (!file) return;
+    // Tenta enviar a foto para o buscador (Android e iOS recentes)
+    if (navigator.share) {
+      try {
+        await navigator.share({ files: [file], title: 'Buscar produto', text: 'Pesquisar preço deste produto' });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return; // usuário cancelou o compartilhamento
+      }
+    }
+    // Fallback universal (iPhone/Safari incluído): link tocável, sem pop-up bloqueado
+    lensLink('Foto pronta.');
+  });
+
+  calc();
+})();
+</script>
+
+</body>
+</html>
