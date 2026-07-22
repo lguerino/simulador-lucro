@@ -163,6 +163,9 @@
   :root[data-theme="light"] .scan-btn { color: #fff; }
   .photo-btn { font: inherit; font-size: 14px; font-weight: 600; color: var(--accent); background: transparent; border: 1px solid var(--field-line); border-radius: 10px; padding: 10px 16px; cursor: pointer; white-space: nowrap; }
   .photo-btn:hover { border-color: var(--accent); }
+  .info-note { margin-top: 12px; padding: 11px 13px; border-radius: 10px; background: var(--accent-soft); color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
+  .info-note[hidden] { display: none; }
+  .info-note a { color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
 
   .scan-note { margin-top: 12px; padding: 11px 13px; border-radius: 10px; background: var(--tax-soft); color: var(--tax); font-size: 13px; line-height: 1.5; }
   .scan-note[hidden] { display: none; }
@@ -381,6 +384,7 @@
       </div>
       <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
       <div class="scan-note" id="scanNote" hidden></div>
+      <div class="info-note" id="photoNote" hidden></div>
       <div class="scanner" id="scanner" hidden>
         <video id="video" playsinline muted></video>
         <div class="scan-bar"><span id="scanMsg">Aponte a câmera para o código de barras…</span>
@@ -684,16 +688,18 @@
   /* ---- Buscar por foto (Google Lens) ---- */
   var photoBtn = document.getElementById('photoBtn');
   var photoInput = document.getElementById('photoInput');
+  var photoNote = document.getElementById('photoNote');
   var LENS_URL = 'https://lens.google.com/';
+
+  function lensLink(prefix) {
+    photoNote.innerHTML = (prefix ? prefix + ' ' : '') +
+      '<a href="' + LENS_URL + '" target="_blank" rel="noopener">Abrir o Google Lens</a> e fotografar o produto para ver onde comprar e os preços.';
+    photoNote.hidden = false;
+  }
 
   photoBtn.addEventListener('click', function () {
     if (scanning) stopScan();
-    // Se o aparelho não sabe compartilhar arquivos, abre o Lens direto (usa a câmera do próprio Lens)
-    if (!(navigator.canShare && navigator.share)) {
-      note('Abrindo o Google Lens — fotografe o produto para ver onde comprar e os preços.');
-      window.open(LENS_URL, '_blank', 'noopener');
-      return;
-    }
+    scanNote.hidden = true; photoNote.hidden = true;
     photoInput.click(); // abre a câmera / galeria
   });
 
@@ -701,16 +707,17 @@
     var file = this.files && this.files[0];
     this.value = '';
     if (!file) return;
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    // Tenta enviar a foto para o buscador (Android e iOS recentes)
+    if (navigator.share) {
       try {
         await navigator.share({ files: [file], title: 'Buscar produto', text: 'Pesquisar preço deste produto' });
         return;
       } catch (e) {
-        if (e && e.name === 'AbortError') return; // usuário cancelou
+        if (e && e.name === 'AbortError') return; // usuário cancelou o compartilhamento
       }
     }
-    note('Foto capturada. Abrindo o Google Lens — toque no ícone da galeria/câmera e escolha esta foto para ver os preços.');
-    window.open(LENS_URL, '_blank', 'noopener');
+    // Fallback universal (iPhone/Safari incluído): link tocável, sem pop-up bloqueado
+    lensLink('Foto pronta.');
   });
 
   calc();
