@@ -645,41 +645,53 @@
       note('Este navegador não permite acesso à câmera. Abra a página por HTTPS (não como arquivo local) e tente de novo, ou digite o EAN.');
       return;
     }
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
-    } catch (e) {
-      note('Não foi possível acessar a câmera (permissão negada). Toque no cadeado do navegador, permita a câmera e tente de novo — ou digite o código EAN.');
-      return;
-    }
-    video.srcObject = stream;
-    video.setAttribute('playsinline', '');
     scanner.hidden = false;
+    video.setAttribute('playsinline', '');
+    video.muted = true;
     scanBtn.textContent = '✕ Parar';
     scanMsg.textContent = 'Aponte a câmera para o código de barras…';
-    try { await video.play(); } catch (e) {}
     scanning = true;
 
-    // Chrome/Android: usa o leitor nativo
+    // Caminho 1 — Android/Chrome: BarcodeDetector nativo (nós controlamos a câmera)
     if ('BarcodeDetector' in window) {
       detector = makeDetector();
-      if (detector) { tickNative(); return; }
+      if (detector) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+          video.srcObject = stream;
+          await video.play();
+          tickNative();
+          return;
+        } catch (e) {
+          if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) {
+            note('Permita a câmera para escanear (toque no cadeado do navegador) — ou digite o EAN.'); stopScan(); return;
+          }
+          detector = null; // falhou: tenta ZXing abaixo
+        }
+      }
     }
-    // iPhone/Safari e demais: usa ZXing
+
+    // Caminho 2 — iPhone/Safari e demais: a ZXing controla a câmera diretamente
     if (typeof ZXing !== 'undefined' && ZXing.BrowserMultiFormatReader) {
       try {
         zxingReader = new ZXing.BrowserMultiFormatReader();
         var cb = function (result) { if (result) onFound(result.getText()); };
-        if (typeof zxingReader.decodeFromVideoElement === 'function') zxingReader.decodeFromVideoElement(video, cb);
-        else if (typeof zxingReader.decodeFromStream === 'function') zxingReader.decodeFromStream(stream, video, cb);
-        else zxingReader.decodeFromVideoDevice(null, video, cb);
+        if (typeof zxingReader.decodeFromConstraints === 'function') {
+          await zxingReader.decodeFromConstraints({ video: { facingMode: 'environment' }, audio: false }, video, cb);
+        } else {
+          await zxingReader.decodeFromVideoDevice(undefined, video, cb);
+        }
+        return;
       } catch (e) {
-        note('Não foi possível iniciar o leitor. Recarregue a página (a biblioteca de leitura precisa de conexão na primeira abertura) ou digite o EAN.');
+        if (!scanning) return; // parada normal pelo usuário
+        note('Não foi possível acessar a câmera para o leitor (permita no cadeado do Safari) ou o leitor não carregou. Você pode digitar o EAN.');
         stopScan();
+        return;
       }
-    } else {
-      note('A biblioteca de leitura de código de barras não carregou — verifique a conexão na primeira abertura. Você ainda pode digitar o EAN.');
-      stopScan();
     }
+
+    note('A leitura de código de barras não está disponível neste navegador. Digite o EAN manualmente.');
+    stopScan();
   }
 
   scanBtn.addEventListener('click', function () { if (scanning) stopScan(); else startScan(); });
